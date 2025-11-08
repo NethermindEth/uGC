@@ -33,7 +33,7 @@ endif()
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-set(OBJECT_GEN_FLAGS "-march=rv64ima -mabi=lp64")
+set(OBJECT_GEN_FLAGS "-march=rv64imad -mabi=lp64d -fno-rtti -fno-exceptions ")
 
 set(CMAKE_C_FLAGS   "${OBJECT_GEN_FLAGS} -std=gnu99 " CACHE INTERNAL "C Compiler options")
 set(CMAKE_CXX_FLAGS "${OBJECT_GEN_FLAGS} -std=c++11 " CACHE INTERNAL "C++ Compiler options")
