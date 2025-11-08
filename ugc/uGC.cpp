@@ -12,7 +12,7 @@
 
 /** Initialize GC */
 extern "C" HRESULT
-GC_Initialize(
+__wrap_GC_Initialize(
     /* In  */ IGCToCLR* clrToGC,
     /* Out */ IGCHeap** gcHeap,
     /* Out */ IGCHandleManager** gcHandleManager,
@@ -33,7 +33,7 @@ GC_Initialize(
 
 /* Provide information about GC version */
 extern "C" void
-GC_VersionInfo(VersionInfo* result)
+__wrap_GC_VersionInfo(VersionInfo* result)
 {
     result->MajorVersion = GC_INTERFACE_MINOR_VERSION;
     result->MinorVersion = GC_INTERFACE_MAJOR_VERSION;
