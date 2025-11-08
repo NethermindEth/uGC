@@ -7,6 +7,8 @@ if [ "${RUNTIME_BASE_DIR}" == "" ] ; then
     exit 1
 fi
 
+export TOOLCHAIN_ROOT=/usr
+
 mkdir -p build
 pushd build > /dev/null 2> /dev/null
     cmake -GNinja \
@@ -16,4 +18,11 @@ pushd build > /dev/null 2> /dev/null
           ..
     ninja
     ninja install
+    file="usr/lib/libugc-zero.a"
+    printf '\x00' | dd of="$file" bs=1 seek=$((0x30)) count=1 conv=notrunc
+    pushd usr/lib/objects/ugc-zero
+        for file in  uGC.cpp.obj uGCHandleManager.cpp.obj uGCHandleStore.cpp.obj uGCHeap.cpp.obj ; do
+            printf '\x00' | dd of="$file" bs=1 seek=$((0x30)) count=1 conv=notrunc
+        done
+    popd
 popd > /dev/null 2> /dev/null
