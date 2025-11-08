@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.20)
 project(ugc-zero)
 
 add_library(${PROJECT_NAME}
-            STATIC
+            OBJECT
             uGC.cpp
             uGCHandleManager.cpp
             uGCHandleStore.cpp
@@ -31,6 +31,8 @@ install(TARGETS ${PROJECT_NAME}
         LIBRARY
             DESTINATION lib
         ARCHIVE
+            DESTINATION lib
+        OBJECTS
             DESTINATION lib
         RUNTIME
             DESTINATION bin)
