@@ -252,20 +252,6 @@ uGCHeap::GetLastGCGenerationSize(int gen)
 HRESULT
 uGCHeap::Initialize()
 {
-    // Not used currently
-    MethodTable* freeObjectMethodTable = gcToCLR->GetFreeObjectMethodTable();
-
-    WriteBarrierParameters args = {};
-    args.operation = WriteBarrierOp::Initialize;
-    args.is_runtime_suspended = true;
-    args.requires_upper_bounds_check = false;
-    args.card_table = new uint32_t[1];
-    args.lowest_address = reinterpret_cast<uint8_t*>(~0);;
-    args.highest_address = reinterpret_cast<uint8_t*>(1);
-    args.ephemeral_low = reinterpret_cast<uint8_t*>(~0);
-    args.ephemeral_high = reinterpret_cast<uint8_t*>(1);
-    gcToCLR->StompWriteBarrier(&args);
-
     return NOERROR;
 }
 
@@ -338,6 +324,23 @@ bool
 uGCHeap::RuntimeStructuresValid()
 {
     return true;
+}
+
+void
+uGCHeap::SetSuspensionPending(bool fSuspensionPending)
+{
+}
+
+__attribute__((noinline,optimize("O2")))
+void
+uGCHeap::SetYieldProcessorScalingFactor(float yieldProcessorScalingFactor)
+{
+    asm volatile("" ::: "memory");
+}
+
+void
+uGCHeap::Shutdown()
+{
 }
 
 size_t
@@ -472,7 +475,8 @@ uGCHeap::StressHeap(gc_alloc_context * acontext)
 segment_handle
 uGCHeap::RegisterFrozenSegment(segment_info * pseginfo)
 {
-    return segment_handle();
+    registeredSegments++;
+    return (segment_handle)registeredSegments;
 }
 
 void
@@ -561,17 +565,14 @@ uGCHeap::DiagWalkHeapWithACHandling(walk_fn fn, void* context, int gen_number,
 }
 
 void
-uGCHeap::SetSuspensionPending(bool fSuspensionPending)
+uGCHeap::NullBridgeObjectsWeakRefs(size_t length,
+    void* unreachableObjectHandles)
 {
 }
 
-void
-uGCHeap::SetYieldProcessorScalingFactor(float yieldProcessorScalingFactor)
+bool
+uGCHeap::IsPromoted(Object* object, bool bVerifyNextHeader)
 {
-}
-
-void
-uGCHeap::Shutdown()
-{
+    return false;
 }
 

@@ -15,11 +15,13 @@ class uGCHeap : public IGCHeap
 {
 private:
     IGCToCLR* gcToCLR;
+    int registeredSegments;
 
 public:
     uGCHeap(IGCToCLR* gcToCLR)
     {
         this->gcToCLR = gcToCLR;
+        this->registeredSegments = 0;
     }
 
     /* Hosting APIs */
@@ -172,8 +174,6 @@ public:
         uint8_t** ppStart, uint8_t** ppAllocated,
         uint8_t** ppReserved) override;
 
-    uGCHeap() {}
-
     virtual int64_t GetTotalPauseDuration() override;
 
     virtual void EnumerateConfigurationValues(void* context,
@@ -193,4 +193,9 @@ public:
 
     virtual void DiagWalkHeapWithACHandling(walk_fn fn, void* context,
         int gen_number, bool walk_large_object_heap_p) override;
+
+    virtual void NullBridgeObjectsWeakRefs(size_t length,
+        void* unreachableObjectHandles) override;
+
+    virtual bool IsPromoted(Object* object, bool bVerifyNextHeader) override;
 };
