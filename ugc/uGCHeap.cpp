@@ -570,9 +570,3 @@ uGCHeap::NullBridgeObjectsWeakRefs(size_t length,
 {
 }
 
-bool
-uGCHeap::IsPromoted(Object* object, bool bVerifyNextHeader)
-{
-    return false;
-}
-

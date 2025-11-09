@@ -196,6 +196,4 @@ public:
 
     virtual void NullBridgeObjectsWeakRefs(size_t length,
         void* unreachableObjectHandles) override;
-
-    virtual bool IsPromoted(Object* object) override;
 };
