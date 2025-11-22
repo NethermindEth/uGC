@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:25.04
 
 RUN apt-get update -y && apt-get install -y build-essential gcc-riscv64-linux-gnu g++-riscv64-linux-gnu git ninja-build cmake
 
