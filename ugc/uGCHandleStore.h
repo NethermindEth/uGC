@@ -26,4 +26,11 @@ public:
         Object *secondary) override;
 
     virtual ~uGCHandleStore() {};
+
+    OBJECTHANDLE uGetDependentHandle(OBJECTHANDLE hndl);
+    void uSetDependentHandle(OBJECTHANDLE hndl, Object *secondary);
+    HandleType uGetHandleType(OBJECTHANDLE hndl);
+    void uSetHandleType(OBJECTHANDLE hndl, HandleType type);
+    void *uGetHandleExtraInfo(OBJECTHANDLE hndl);
+    void  uSetHandleExtraInfo(OBJECTHANDLE hndl, void *extraInfo);
 };
