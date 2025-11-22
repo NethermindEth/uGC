@@ -64,12 +64,14 @@ void
 uGCHandleManager::SetExtraInfoForHandle(OBJECTHANDLE handle, HandleType type,
     void * pExtraInfo)
 {
+    _handleStore->uSetHandleType(handle, type);
+    _handleStore->uSetHandleExtraInfo(handle, pExtraInfo);
 }
 
 void *
 uGCHandleManager::GetExtraInfoFromHandle(OBJECTHANDLE handle)
 {
-    return nullptr;
+    return _handleStore->uGetHandleExtraInfo(handle);
 }
 
 void
@@ -96,12 +98,14 @@ void
 uGCHandleManager::SetDependentHandleSecondary(OBJECTHANDLE handle,
     Object *object)
 {
+    _handleStore->uSetDependentHandle(handle, object);
 }
 
 Object *
 uGCHandleManager::GetDependentHandleSecondary(OBJECTHANDLE handle)
 {
-    return nullptr;
+    Object **handleObj = (Object **)_handleStore->uGetDependentHandle(handle);
+    return *handleObj;
 }
 
 Object*
@@ -120,7 +124,7 @@ uGCHandleManager::InterlockedCompareExchangeObjectInHandle(OBJECTHANDLE handle,
 HandleType
 uGCHandleManager::HandleFetchType(OBJECTHANDLE handle)
 {
-    return HandleType();
+    return _handleStore->uGetHandleType(handle);
 }
 
 void

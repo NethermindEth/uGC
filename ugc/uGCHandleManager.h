@@ -10,6 +10,7 @@
 #include "uGCBase.h"
 #include "gcenv.base.h"
 #include "gcinterface.h"
+#include "uGCHandleStore.h"
 
 class uGCHandleManager : public IGCHandleManager
 {
@@ -55,5 +56,5 @@ public:
         uintptr_t param1, uintptr_t param2) override;
 
 private:
-    IGCHandleStore *_handleStore;
+    uGCHandleStore *_handleStore;
 };
