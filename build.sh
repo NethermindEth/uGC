@@ -7,7 +7,7 @@ is_docker="$1"
 if [ "$is_docker" == "docker" ] ; then
     docker build .
     sha=$(docker build -q .)
-    docker run -v $(pwd):$(pwd) -w $(pwd) -it $sha ./build.sh
+    docker run -v $(pwd):$(pwd) -w $(pwd) $sha ./build.sh
     exit $?
 fi
 
