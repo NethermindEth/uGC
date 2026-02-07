@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build with Docker
+        run: |
+          chmod +x build.sh
+          ./build.sh docker
+
+      - name: Verify build artifacts
+        run: |
+          if [ -f "build/usr/lib/libugc-zero.a" ]; then
+            echo "✅ Build successful: libugc-zero.a created"
+            ls -lh build/usr/lib/libugc-zero.a
+            file build/usr/lib/libugc-zero.a
+          else
+            echo "❌ Build failed: libugc-zero.a not found"
+            exit 1
+          fi
+
+      - name: Check object files
+        run: |
+          echo "Checking object files..."
+          ls -lh build/usr/lib/objects/ugc-zero/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugc-riscv64-build
+          path: |
+            build/usr/lib/libugc-zero.a
+            build/usr/lib/objects/ugc-zero/*
+          retention-days: 7

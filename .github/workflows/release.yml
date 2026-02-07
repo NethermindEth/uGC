@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build with Docker
+        run: |
+          chmod +x build.sh
+          ./build.sh docker
+
+      - name: Verify artifact
+        run: |
+          if [ -f "build/usr/lib/libugc-zero.a" ]; then
+            echo "✅ Artifact found"
+            ls -lh build/usr/lib/libugc-zero.a
+          else
+            echo "❌ Artifact not found"
+            exit 1
+          fi
+
+      - name: Create archive
+        run: |
+          cd build/usr
+          tar -czf ../../ugc-riscv64.tar.gz lib/libugc-zero.a lib/objects/ugc-zero/*
+          cd ../..
+          ls -lh ugc-riscv64.tar.gz
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" == "tag" ]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            build/usr/lib/libugc-zero.a
+            build/usr/lib/objects/ugc-zero/*.obj
+            ugc-riscv64.tar.gz
+          body: |
+            ## uGC Release ${{ steps.version.outputs.version }}
+
+            Lightweight Garbage Collector for .NET on RISC-V 64-bit
+
+            ### Files
+            - `libugc-zero.a` - Static library
+            - `*.obj` - Individual object files (uGC.cpp.obj, uGCHandleManager.cpp.obj, uGCHandleStore.cpp.obj, uGCHeap.cpp.obj)
+            - `ugc-riscv64.tar.gz` - Complete archive with library and object files
+
+            ### Usage
+            Link this library with your bflat RISC-V 64-bit projects.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
