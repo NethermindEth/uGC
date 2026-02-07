@@ -35,8 +35,8 @@ __wrap_GC_Initialize(
 extern "C" void
 __wrap_GC_VersionInfo(VersionInfo* result)
 {
-    result->MajorVersion = GC_INTERFACE_MINOR_VERSION;
-    result->MinorVersion = GC_INTERFACE_MAJOR_VERSION;
+    result->MajorVersion = GC_INTERFACE_MAJOR_VERSION;
+    result->MinorVersion = GC_INTERFACE_MINOR_VERSION;
     result->BuildVersion = 0;
     result->Name = "uGC";
 }
