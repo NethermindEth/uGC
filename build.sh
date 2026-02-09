@@ -8,6 +8,8 @@ pushd "${TOP_DIR}"
     if [ "$is_docker" == "docker" ] ; then
         docker build .
         sha=$(docker build -q .)
+        echo Current directory: $(pwd)
+        echo Command: docker run -v $(pwd):/workspace -w /workspace $sha ./build.sh
         docker run -v $(pwd):/workspace -w /workspace $sha ./build.sh
         exit $?
     fi
