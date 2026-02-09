@@ -10,6 +10,7 @@ pushd "${TOP_DIR}"
         sha=$(docker build -q .)
         echo Current directory: $(pwd)
         echo Command: docker run -v $(pwd):/workspace -w /workspace $sha ./build.sh
+        docker run -v $(pwd):/workspace -w /workspace $sha ls
         docker run -v $(pwd):/workspace -w /workspace $sha ./build.sh
         exit $?
     fi
