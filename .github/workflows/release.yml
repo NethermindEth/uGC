@@ -37,9 +37,11 @@ jobs:
 
       - name: Create archive
         run: |
-          cd build/usr
-          tar -czf ../../ugc-riscv64.tar.gz lib/libugc-zero.a lib/objects/ugc-zero/*
-          cd ../..
+          mkdir -p archive_tmp
+          find build/usr -name "*.a" -exec cp {} archive_tmp/ \;
+          find build/usr -name "*.obj" -exec cp {} archive_tmp/ \;
+          tar -czf ugc-riscv64.tar.gz -C archive_tmp .
+          rm -rf archive_tmp
           ls -lh ugc-riscv64.tar.gz
 
       - name: Extract version
