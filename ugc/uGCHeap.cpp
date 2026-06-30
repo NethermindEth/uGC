@@ -364,9 +364,18 @@ uGCHeap::GetNow()
 Object *
 uGCHeap::Alloc(gc_alloc_context * acontext, size_t size, uint32_t flags)
 {
-    int sizeWithHeader = size + sizeof(ObjHeader);
+    /* size is size_t; the old code truncated it into an int, which for a
+     * large object could wrap to a small or negative value and under-allocate.
+     * Keep the full width and reject an addition that overflows size_t. */
+    size_t sizeWithHeader = size + sizeof(ObjHeader);
+    if (sizeWithHeader < size)
+        return nullptr; /* overflow: signal OOM rather than under-allocate */
+
     ObjHeader* address = (ObjHeader*)calloc(sizeWithHeader, sizeof(char));
-	return (Object*)(address + 1);
+    if (address == nullptr)
+        return nullptr; /* OOM: don't offset a null pointer into a bogus object */
+
+    return (Object*)(address + 1);
 }
 
 void
