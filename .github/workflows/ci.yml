@@ -13,7 +13,51 @@ on:
       - develop
 
 jobs:
+  unit-tests:
+    name: Unit tests (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [none, address, undefined]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          if [ "${{ matrix.sanitizer }}" != "none" ]; then
+            export CFLAGS="-fsanitize=${{ matrix.sanitizer }} -fno-sanitize-recover=all -g"
+            export LDFLAGS="-fsanitize=${{ matrix.sanitizer }}"
+          fi
+          cmake -S . -B build-tests -DUGC_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build-tests
+
+      - name: Run tests
+        run: ctest --test-dir build-tests --output-on-failure
+
+  formal-verification:
+    name: Formal verification (Frama-C)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Pull Frama-C image
+        run: docker pull framac/frama-c:30.0
+
+      - name: Run WP + Eva
+        run: |
+          chmod +x formal/verify.sh
+          docker run --rm -v "$PWD":/work -w /work framac/frama-c:30.0 \
+            ./formal/verify.sh
+
   build:
+    name: Cross-build (riscv64)
     runs-on: ubuntu-latest
 
     steps:
@@ -42,7 +86,8 @@ jobs:
       - name: Check object files
         run: |
           echo "Checking object files..."
-          ls -lh build/usr/lib/objects/ugc-zero/
+          find build/usr/lib/objects/ugc-zero -name '*.obj' | tee objects.txt
+          test -s objects.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -50,5 +95,5 @@ jobs:
           name: ugc-riscv64-build
           path: |
             build/usr/lib/libugc-zero.a
-            build/usr/lib/objects/ugc-zero/*
+            build/usr/lib/objects/ugc-zero/**
           retention-days: 7
