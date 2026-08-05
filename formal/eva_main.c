@@ -47,12 +47,18 @@ main(void)
     void **h1 = ugc_handle_create(&object_a, Frama_C_interval(0, 12));
     void **h2 = ugc_handle_create_with_extra(&object_a,
         Frama_C_interval(0, 12), &object_b);
-    void **h3 = ugc_handle_create_dependent(&object_a, &object_b);
+    void **h3 = ugc_handle_create_dependent(&object_a, &object_b,
+        Frama_C_interval(0, 12));
 
     if (h1 != (void **)0)
     {
         (void)ugc_handle_store_contains(h1);
         (void)ugc_handle_index(h1);
+
+        /* --- Destroy + recycle: double destroy must be harmless --- */
+        ugc_handle_destroy_at(ugc_handle_index(h1));
+        ugc_handle_destroy_at(ugc_handle_index(h1));
+        h1 = ugc_handle_create(&object_b, Frama_C_interval(0, 12));
     }
     (void)ugc_handle_store_contains(&object_a);
     (void)ugc_handle_store_contains((const void *)0);

@@ -31,7 +31,12 @@ uGCHandleManager::GetGlobalHandleStore()
 IGCHandleStore *
 uGCHandleManager::CreateHandleStore()
 {
-    return nullptr;
+    /* Secondary stores (collectible AssemblyLoadContexts) share the global
+     * static-array-backed store: uGC never unloads anything, so isolation
+     * between stores buys nothing, and reusing the singleton avoids a heap
+     * allocation per store. DestroyHandleStore stays a no-op for the same
+     * reason. */
+    return _handleStore;
 }
 
 void
@@ -48,17 +53,22 @@ uGCHandleManager::CreateGlobalHandleOfType(Object *object, HandleType type)
 OBJECTHANDLE
 uGCHandleManager::CreateDuplicateHandle(OBJECTHANDLE handle)
 {
-    return OBJECTHANDLE();
+    if (handle == OBJECTHANDLE())
+        return OBJECTHANDLE();
+    return _handleStore->CreateHandleOfType(*(Object **)handle,
+        _handleStore->uGetHandleType(handle));
 }
 
 void
 uGCHandleManager::DestroyHandleOfType(OBJECTHANDLE handle, HandleType type)
 {
+    _handleStore->uDestroyHandle(handle);
 }
 
 void
 uGCHandleManager::DestroyHandleOfUnknownType(OBJECTHANDLE handle)
 {
+    _handleStore->uDestroyHandle(handle);
 }
 
 void
