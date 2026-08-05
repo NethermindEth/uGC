@@ -7,7 +7,7 @@
  * @author Maxim Menshikov <maksim.menshikov@nethermind.io>
  */
 #include "uGCHeap.h"
-#include <stdlib.h>
+#include "core/ugc_core.h"
 
 class ObjHeader
 {
@@ -361,64 +361,22 @@ uGCHeap::GetNow()
     return size_t();
 }
 
-/* Allocation-context quantum. Refilling the context lets the runtime's own
- * fast paths (coreclr/runtime/<arch>/AllocFast.S: RhpNewFast & friends) bump
- * inline on alloc_ptr/combined_limit without calling into the GC again; the
- * runtime refreshes combined_limit itself after every GCHeap::Alloc
- * (GCHelpers.cpp: GcAllocInternal -> UpdateCombinedLimit). Must stay below
- * RH_LARGE_OBJECT_SIZE (85000): GcAllocInternal asserts in _DEBUG that
- * alloc_limit - alloc_ptr never exceeds it. */
-#ifndef UGC_ALLOC_QUANTUM
-#define UGC_ALLOC_QUANTUM (64 * 1024)
-#endif
-
 Object *
 uGCHeap::Alloc(gc_alloc_context * acontext, size_t size, uint32_t flags)
 {
-    /* size is size_t; the old code truncated it into an int, which for a
-     * large object could wrap to a small or negative value and under-allocate.
-     * Keep the full width and reject an addition that overflows size_t. */
-    size_t sizeWithHeader = size + sizeof(ObjHeader);
-    if (sizeWithHeader < size)
-        return nullptr; /* overflow: signal OOM rather than under-allocate */
+    /* All the allocation logic lives in the formally specified C core
+     * (core/ugc_core.h). Here we only unpack the allocation context. */
+    uint8_t **alloc_ptr_p = nullptr;
+    uint8_t **alloc_limit_p = nullptr;
 
-    /* Large or old-heap-flagged objects bypass the allocation context, like
-     * the real GC does: the context quantum is deliberately smaller than the
-     * LOH threshold, and GC_ALLOC_USER_OLD_HEAP objects must not land in the
-     * ephemeral context region. */
-    if (acontext == nullptr || sizeWithHeader > UGC_ALLOC_QUANTUM ||
-        (flags & GC_ALLOC_USER_OLD_HEAP) != 0)
+    if (acontext != nullptr)
     {
-        ObjHeader* address = (ObjHeader*)calloc(sizeWithHeader, sizeof(char));
-        if (address == nullptr)
-            return nullptr; /* OOM: don't offset a null into a bogus object */
-
-        return (Object*)(address + 1);
+        alloc_ptr_p = &acontext->alloc_ptr;
+        alloc_limit_p = &acontext->alloc_limit;
     }
 
-    /* Serve from the thread's context when the request still fits. (We only
-     * get here if the runtime's inline fast path failed, e.g. right after the
-     * context was created or exhausted, or from paths that skip it.) */
-    uint8_t* ptr = acontext->alloc_ptr;
-    if (ptr != nullptr && (size_t)(acontext->alloc_limit - ptr) >= size)
-    {
-        acontext->alloc_ptr = ptr + size;
-        return (Object*)ptr;
-    }
-
-    /* Refill: hand the context a fresh zeroed quantum. The first object's
-     * ObjHeader occupies the first sizeof(ObjHeader) bytes (plug skew);
-     * every object's base size already pre-pays the header of the object
-     * that follows it, so a plain alloc_ptr bump keeps headers intact. The
-     * remainder of the previous quantum is abandoned - this GC never frees
-     * memory anyway. */
-    uint8_t* base = (uint8_t*)calloc(UGC_ALLOC_QUANTUM, sizeof(char));
-    if (base == nullptr)
-        return nullptr;
-
-    acontext->alloc_ptr   = base + sizeof(ObjHeader) + size;
-    acontext->alloc_limit = base + UGC_ALLOC_QUANTUM;
-    return (Object*)(base + sizeof(ObjHeader));
+    return (Object *)ugc_core_alloc(alloc_ptr_p, alloc_limit_p, size,
+        (flags & GC_ALLOC_USER_OLD_HEAP) != 0, sizeof(ObjHeader));
 }
 
 void

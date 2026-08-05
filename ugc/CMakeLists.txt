@@ -10,6 +10,8 @@ project(ugc-zero)
 
 add_library(${PROJECT_NAME}
             OBJECT
+            core/ugc_core.c
+            core/ugc_zalloc.c
             uGC.cpp
             uGCHandleManager.cpp
             uGCHandleStore.cpp

@@ -8,6 +8,7 @@
  */
 #include "uGCHandleManager.h"
 #include "uGCHandleStore.h"
+#include "core/ugc_core.h"
 
 bool
 uGCHandleManager::Initialize()
@@ -77,21 +78,13 @@ uGCHandleManager::GetExtraInfoFromHandle(OBJECTHANDLE handle)
 void
 uGCHandleManager::StoreObjectInHandle(OBJECTHANDLE handle, Object *object)
 {
-    Object **handleObj = (Object **)handle;
-    *handleObj = object;
+    ugc_handle_slot_store((void **)handle, object);
 }
 
 bool
 uGCHandleManager::StoreObjectInHandleIfNull(OBJECTHANDLE handle, Object *object)
 {
-    Object **handleObj = (Object **)handle;
-
-    if (*handleObj == NULL)
-    {
-        *handleObj = object;
-        return true;
-    }
-    return false;
+    return ugc_handle_slot_store_if_null((void **)handle, object);
 }
 
 void
@@ -112,13 +105,7 @@ Object*
 uGCHandleManager::InterlockedCompareExchangeObjectInHandle(OBJECTHANDLE handle,
     Object *object, Object *oldObject)
 {
-    Object **handleObject = (Object **)handle;
-
-    if (*handleObject == oldObject)
-    {
-        *handleObject = object;
-    }
-    return *handleObject;
+    return (Object *)ugc_handle_slot_cas((void **)handle, object, oldObject);
 }
 
 HandleType

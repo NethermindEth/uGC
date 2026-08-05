@@ -62,7 +62,7 @@ jobs:
           prerelease: false
           files: |
             build/usr/lib/libugc-zero.a
-            build/usr/lib/objects/ugc-zero/*.obj
+            build/usr/lib/objects/ugc-zero/**/*.obj
             ugc-riscv64.tar.gz
           body: |
             ## uGC Release ${{ steps.version.outputs.version }}
@@ -71,7 +71,7 @@ jobs:
 
             ### Files
             - `libugc-zero.a` - Static library
-            - `*.obj` - Individual object files (uGC.cpp.obj, uGCHandleManager.cpp.obj, uGCHandleStore.cpp.obj, uGCHeap.cpp.obj)
+            - `*.obj` - Individual object files (C++ wrappers and the formally verified C core)
             - `ugc-riscv64.tar.gz` - Complete archive with library and object files
 
             ### Usage
