@@ -16,12 +16,19 @@ class uGCHeap : public IGCHeap
 private:
     IGCToCLR* gcToCLR;
     int registeredSegments;
+    /* Bytes of objects served by Alloc (the slow path). The runtime's inline
+     * fast path bump-allocates within the context window without calling
+     * back, so this undercounts total allocation volume - but it is exact
+     * for the slow path, deterministic, and costs one plain add (the zkVM
+     * target is single-hart, so no atomics needed). */
+    uint64_t allocatedBytes;
 
 public:
     uGCHeap(IGCToCLR* gcToCLR)
     {
         this->gcToCLR = gcToCLR;
         this->registeredSegments = 0;
+        this->allocatedBytes = 0;
     }
 
     /* Hosting APIs */

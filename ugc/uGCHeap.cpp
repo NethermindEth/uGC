@@ -108,9 +108,9 @@ uGCHeap::GetMemoryInfo(uint64_t* highMemLoadThresholdBytes,
     *highMemLoadThresholdBytes = 0;
     *totalAvailableMemoryBytes = 0;
     *lastRecordedMemLoadBytes = 0;
-    *lastRecordedHeapSizeBytes = 0;
+    *lastRecordedHeapSizeBytes = allocatedBytes;
     *lastRecordedFragmentationBytes = 0;
-    *totalCommittedBytes = 0;
+    *totalCommittedBytes = allocatedBytes;
     *promotedBytes = 0;
     *pinnedObjectCount = 0;
     *finalizationPendingCount = 0;
@@ -168,13 +168,15 @@ uGCHeap::CancelFullGCNotification()
 int
 uGCHeap::WaitForFullGCApproach(int millisecondsTimeout)
 {
-    return 0;
+    /* Full-GC notifications are never registered (see
+     * RegisterForFullGCNotification), so "not applicable", not "success". */
+    return wait_full_gc_na;
 }
 
 int
 uGCHeap::WaitForFullGCComplete(int millisecondsTimeout)
 {
-    return 0;
+    return wait_full_gc_na;
 }
 
 unsigned
@@ -205,13 +207,13 @@ uGCHeap::EndNoGCRegion()
 size_t
 uGCHeap::GetTotalBytesInUse()
 {
-    return size_t();
+    return (size_t)allocatedBytes;
 }
 
 uint64_t
 uGCHeap::GetTotalAllocatedBytes()
 {
-    return 0;
+    return allocatedBytes;
 }
 
 HRESULT
@@ -223,7 +225,9 @@ uGCHeap::GarbageCollect(int generation, bool low_memory_p, int mode)
 unsigned
 uGCHeap::GetMaxGeneration()
 {
-    return 1;
+    /* The BCL sizes per-generation arrays from GC.MaxGeneration and expects
+     * the standard 2 (gen0/gen1/gen2) even from a non-collecting GC. */
+    return 2;
 }
 
 void
@@ -234,7 +238,10 @@ uGCHeap::SetFinalizationRun(Object * obj)
 bool
 uGCHeap::RegisterForFinalization(int gen, Object * obj)
 {
-    return false;
+    /* Finalizers never run (nothing ever becomes unreachable), but the
+     * registration itself must "succeed": GC.ReRegisterForFinalize turns a
+     * false here into an OutOfMemoryException. */
+    return true;
 }
 
 int
@@ -258,7 +265,8 @@ uGCHeap::Initialize()
 bool
 uGCHeap::IsPromoted(Object * object)
 {
-    return false;
+    /* Everything survives forever in a non-collecting GC. */
+    return true;
 }
 
 bool
@@ -312,7 +320,7 @@ uGCHeap::FixAllocContext(gc_alloc_context* acontext, void* arg, void* heap)
 size_t
 uGCHeap::GetCurrentObjSize()
 {
-    return size_t();
+    return (size_t)allocatedBytes;
 }
 
 void
@@ -375,8 +383,22 @@ uGCHeap::Alloc(gc_alloc_context * acontext, size_t size, uint32_t flags)
         alloc_limit_p = &acontext->alloc_limit;
     }
 
-    return (Object *)ugc_core_alloc(alloc_ptr_p, alloc_limit_p, size,
+    Object *obj = (Object *)ugc_core_alloc(alloc_ptr_p, alloc_limit_p, size,
         (flags & GC_ALLOC_USER_OLD_HEAP) != 0, sizeof(ObjHeader));
+    if (obj != nullptr)
+    {
+        allocatedBytes += size;
+        if (acontext != nullptr)
+        {
+            /* GC.GetTotalAllocatedBytes(precise: true) sums these per-context
+             * counters; keep the SOH/UOH split the interface defines. */
+            if ((flags & GC_ALLOC_USER_OLD_HEAP) != 0)
+                acontext->alloc_bytes_uoh += (int64_t)size;
+            else
+                acontext->alloc_bytes += (int64_t)size;
+        }
+    }
+    return obj;
 }
 
 void
@@ -565,7 +587,9 @@ uGCHeap::GetGenerationBudget(int generation)
 size_t
 uGCHeap::GetLOHThreshold()
 {
-    return 0;
+    /* Report the standard threshold instead of 0 so managed callers that
+     * branch on it (array pooling, GC.GetConfiguration) see sane values. */
+    return LARGE_OBJECT_SIZE;
 }
 
 void
