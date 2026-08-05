@@ -37,7 +37,7 @@ pushd "${TOP_DIR}"
         file="usr/lib/libugc-zero.a"
         printf '\x00' | dd of="$file" bs=1 seek=$((0x30)) count=1 conv=notrunc
         pushd usr/lib/objects/ugc-zero
-            for file in  uGC.cpp.obj uGCHandleManager.cpp.obj uGCHandleStore.cpp.obj uGCHeap.cpp.obj ; do
+            for file in $(find . -name '*.obj') ; do
                 printf '\x00' | dd of="$file" bs=1 seek=$((0x30)) count=1 conv=notrunc
             done
         popd
