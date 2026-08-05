@@ -41,4 +41,6 @@
 *.dwo
 
 /build
+/build-tests
 .DS_Store
+/.frama-c
