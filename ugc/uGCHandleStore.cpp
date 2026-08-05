@@ -44,7 +44,16 @@ uGCHandleStore::CreateHandleWithExtraInfo(Object *object, HandleType type,
 OBJECTHANDLE
 uGCHandleStore::CreateDependentHandle(Object *primary, Object *secondary)
 {
-    return (OBJECTHANDLE)ugc_handle_create_dependent(primary, secondary);
+    return (OBJECTHANDLE)ugc_handle_create_dependent(primary, secondary,
+        (int)HNDTYPE_DEPENDENT);
+}
+
+void
+uGCHandleStore::uDestroyHandle(OBJECTHANDLE hndl)
+{
+    if (!ugc_handle_store_contains((const void *)hndl))
+        return;
+    ugc_handle_destroy_at(ugc_handle_index((void **)hndl));
 }
 
 OBJECTHANDLE

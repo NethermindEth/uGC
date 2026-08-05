@@ -38,6 +38,12 @@ extern "C" {
 /** Capacity of the global handle store */
 #define UGC_HANDLE_COUNT 65535
 
+/** Type marker of a destroyed (recyclable) handle slot. Live handles always
+ * carry a non-negative HandleType, so a negative type unambiguously tags a
+ * slot that sits on the free stack; ugc_handle_destroy_at uses it to make
+ * a double destroy harmless instead of corrupting the free stack. */
+#define UGC_HANDLE_TYPE_FREE (-1)
+
 /*
  * ---------------------------------------------------------------------------
  * Abstract zeroing allocator
@@ -144,21 +150,32 @@ uint8_t *ugc_core_alloc(uint8_t **alloc_ptr_p, uint8_t **alloc_limit_p,
  * ---------------------------------------------------------------------------
  * A handle is a pointer to a slot of ugc_handles. Parallel arrays keep the
  * handle type, the extra info and the dependent-handle secondary object.
- * Handles are never destroyed (this GC never frees anything), so the store
- * is a monotonically growing array.
+ *
+ * Unlike object memory (which this GC never reclaims), handle slots ARE
+ * recycled: the runtime churns through GCHandle/WeakReference handles fast
+ * enough that a monotonically growing store would exhaust its fixed capacity.
+ * Destroyed slots are pushed on an explicit free stack (LIFO) and popped
+ * before the array is grown, so the live-handle high-water mark - not the
+ * total number of handles ever created - bounds memory use. Single-threaded
+ * by design (zkVM target has one hart): no atomics, no locks.
  */
 extern int   ugc_handle_count;
+extern int   ugc_handle_free_count;
 extern void *ugc_handles[UGC_HANDLE_COUNT];
 extern int   ugc_handle_types[UGC_HANDLE_COUNT];
 extern void *ugc_handle_extra[UGC_HANDLE_COUNT];
 extern void *ugc_handle_dependent[UGC_HANDLE_COUNT];
+extern int   ugc_handle_free_stack[UGC_HANDLE_COUNT];
 
 /*@
   predicate ugc_valid_slot(void **h) =
     \exists integer i; 0 <= i < UGC_HANDLE_COUNT && h == &ugc_handles[i];
 
   predicate ugc_store_consistent =
-    0 <= ugc_handle_count <= UGC_HANDLE_COUNT;
+    0 <= ugc_handle_count <= UGC_HANDLE_COUNT &&
+    0 <= ugc_handle_free_count <= UGC_HANDLE_COUNT &&
+    (\forall integer k; 0 <= k < ugc_handle_free_count ==>
+        0 <= ugc_handle_free_stack[k] < ugc_handle_count);
 */
 
 /**
@@ -176,21 +193,42 @@ bool ugc_handle_store_contains(const void *hndl);
 
 /*@
   requires ugc_store_consistent;
-  assigns ugc_handle_count,
-          ugc_handles[ugc_handle_count],
-          ugc_handle_types[ugc_handle_count];
+  requires type_live: 0 <= type;
+  assigns ugc_handle_count, ugc_handle_free_count,
+          ugc_handles[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_types[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_extra[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1];
+  ensures ugc_store_consistent;
 
   behavior full:
-    assumes ugc_handle_count == UGC_HANDLE_COUNT;
-    assigns \nothing;
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count == UGC_HANDLE_COUNT;
     ensures \result == \null;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count);
 
-  behavior ok:
-    assumes ugc_handle_count < UGC_HANDLE_COUNT;
+  behavior recycled:
+    assumes ugc_handle_free_count > 0;
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count) - 1;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures \let i = ugc_handle_free_stack[ugc_handle_free_count];
+            \result == &ugc_handles[i] &&
+            ugc_handles[i] == object &&
+            ugc_handle_types[i] == type &&
+            ugc_handle_extra[i] == \null &&
+            ugc_handle_dependent[i] == \null;
+
+  behavior fresh:
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count < UGC_HANDLE_COUNT;
     ensures \result == &ugc_handles[\old(ugc_handle_count)];
     ensures ugc_handles[\old(ugc_handle_count)] == object;
     ensures ugc_handle_types[\old(ugc_handle_count)] == type;
+    ensures ugc_handle_extra[\old(ugc_handle_count)] == \null;
+    ensures ugc_handle_dependent[\old(ugc_handle_count)] == \null;
     ensures ugc_handle_count == \old(ugc_handle_count) + 1;
+    ensures ugc_handle_free_count == 0;
 
   complete behaviors;
   disjoint behaviors;
@@ -199,51 +237,134 @@ void **ugc_handle_create(void *object, int type);
 
 /*@
   requires ugc_store_consistent;
-  assigns ugc_handle_count,
-          ugc_handles[ugc_handle_count],
-          ugc_handle_types[ugc_handle_count],
-          ugc_handle_extra[ugc_handle_count];
+  requires type_live: 0 <= type;
+  assigns ugc_handle_count, ugc_handle_free_count,
+          ugc_handles[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_types[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_extra[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1];
+  ensures ugc_store_consistent;
 
   behavior full:
-    assumes ugc_handle_count == UGC_HANDLE_COUNT;
-    assigns \nothing;
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count == UGC_HANDLE_COUNT;
     ensures \result == \null;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count);
 
-  behavior ok:
-    assumes ugc_handle_count < UGC_HANDLE_COUNT;
+  behavior recycled:
+    assumes ugc_handle_free_count > 0;
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count) - 1;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures \let i = ugc_handle_free_stack[ugc_handle_free_count];
+            \result == &ugc_handles[i] &&
+            ugc_handles[i] == object &&
+            ugc_handle_types[i] == type &&
+            ugc_handle_extra[i] == extra &&
+            ugc_handle_dependent[i] == \null;
+
+  behavior fresh:
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count < UGC_HANDLE_COUNT;
     ensures \result == &ugc_handles[\old(ugc_handle_count)];
     ensures ugc_handles[\old(ugc_handle_count)] == object;
     ensures ugc_handle_types[\old(ugc_handle_count)] == type;
     ensures ugc_handle_extra[\old(ugc_handle_count)] == extra;
+    ensures ugc_handle_dependent[\old(ugc_handle_count)] == \null;
     ensures ugc_handle_count == \old(ugc_handle_count) + 1;
+    ensures ugc_handle_free_count == 0;
 
   complete behaviors;
   disjoint behaviors;
 */
 void **ugc_handle_create_with_extra(void *object, int type, void *extra);
 
+/*
+ * Dependent handles now record their HandleType (HNDTYPE_DEPENDENT) like
+ * every other kind: the EE's HandleFetchType must be able to classify them
+ * (ZeroGC does the same via HNDTYPE_DEPENDENT on AllocSlot).
+ */
 /*@
   requires ugc_store_consistent;
-  assigns ugc_handle_count,
-          ugc_handles[ugc_handle_count],
-          ugc_handle_dependent[ugc_handle_count];
+  requires type_live: 0 <= type;
+  assigns ugc_handle_count, ugc_handle_free_count,
+          ugc_handles[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_types[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_extra[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1];
+  ensures ugc_store_consistent;
 
   behavior full:
-    assumes ugc_handle_count == UGC_HANDLE_COUNT;
-    assigns \nothing;
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count == UGC_HANDLE_COUNT;
     ensures \result == \null;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count);
 
-  behavior ok:
-    assumes ugc_handle_count < UGC_HANDLE_COUNT;
+  behavior recycled:
+    assumes ugc_handle_free_count > 0;
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count) - 1;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures \let i = ugc_handle_free_stack[ugc_handle_free_count];
+            \result == &ugc_handles[i] &&
+            ugc_handles[i] == primary &&
+            ugc_handle_types[i] == type &&
+            ugc_handle_extra[i] == \null &&
+            ugc_handle_dependent[i] == secondary;
+
+  behavior fresh:
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count < UGC_HANDLE_COUNT;
     ensures \result == &ugc_handles[\old(ugc_handle_count)];
     ensures ugc_handles[\old(ugc_handle_count)] == primary;
+    ensures ugc_handle_types[\old(ugc_handle_count)] == type;
+    ensures ugc_handle_extra[\old(ugc_handle_count)] == \null;
     ensures ugc_handle_dependent[\old(ugc_handle_count)] == secondary;
     ensures ugc_handle_count == \old(ugc_handle_count) + 1;
+    ensures ugc_handle_free_count == 0;
 
   complete behaviors;
   disjoint behaviors;
 */
-void **ugc_handle_create_dependent(void *primary, void *secondary);
+void **ugc_handle_create_dependent(void *primary, void *secondary, int type);
+
+/**
+ * Destroy the handle slot at idx and make it available for reuse.
+ *
+ * The slot is fully scrubbed (object, type, extra, secondary) so a later
+ * recycled create never leaks stale state, and its index is pushed on the
+ * free stack. A slot whose type is already negative (== destroyed) is left
+ * untouched: a double destroy must not push the same index twice, or two
+ * later creates would hand out aliasing handles.
+ */
+/*@
+  requires ugc_store_consistent;
+  requires valid_index: 0 <= idx < ugc_handle_count;
+  assigns ugc_handle_free_count,
+          ugc_handle_free_stack[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handles[idx], ugc_handle_types[idx],
+          ugc_handle_extra[idx], ugc_handle_dependent[idx];
+  ensures ugc_store_consistent;
+
+  behavior already_free:
+    assumes ugc_handle_types[idx] < 0 ||
+            ugc_handle_free_count == UGC_HANDLE_COUNT;
+    assigns \nothing;
+
+  behavior freed:
+    assumes ugc_handle_types[idx] >= 0 &&
+            ugc_handle_free_count < UGC_HANDLE_COUNT;
+    ensures ugc_handles[idx] == \null;
+    ensures ugc_handle_types[idx] == UGC_HANDLE_TYPE_FREE;
+    ensures ugc_handle_extra[idx] == \null;
+    ensures ugc_handle_dependent[idx] == \null;
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count) + 1;
+    ensures ugc_handle_free_stack[\old(ugc_handle_free_count)] == idx;
+
+  complete behaviors;
+  disjoint behaviors;
+*/
+void ugc_handle_destroy_at(size_t idx);
 
 /**
  * Convert a handle (a pointer to a slot of ugc_handles) into its index.
@@ -304,17 +425,21 @@ void *ugc_handle_get_extra_at(size_t idx);
 void ugc_handle_set_extra_at(size_t idx, void *extra);
 
 /*@
-  assigns ugc_handle_count,
+  assigns ugc_handle_count, ugc_handle_free_count,
           ugc_handles[0 .. UGC_HANDLE_COUNT - 1],
           ugc_handle_types[0 .. UGC_HANDLE_COUNT - 1],
           ugc_handle_extra[0 .. UGC_HANDLE_COUNT - 1],
-          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1];
+          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_free_stack[0 .. UGC_HANDLE_COUNT - 1];
   ensures ugc_handle_count == 0;
+  ensures ugc_handle_free_count == 0;
+  ensures ugc_store_consistent;
   ensures \forall integer i; 0 <= i < UGC_HANDLE_COUNT ==>
           ugc_handles[i] == \null &&
           ugc_handle_types[i] == 0 &&
           ugc_handle_extra[i] == \null &&
-          ugc_handle_dependent[i] == \null;
+          ugc_handle_dependent[i] == \null &&
+          ugc_handle_free_stack[i] == 0;
 */
 void ugc_handle_store_reset(void);
 

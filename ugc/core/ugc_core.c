@@ -9,10 +9,12 @@
 #include "ugc_core.h"
 
 int   ugc_handle_count = 0;
+int   ugc_handle_free_count = 0;
 void *ugc_handles[UGC_HANDLE_COUNT] = { 0 };
 int   ugc_handle_types[UGC_HANDLE_COUNT] = { 0 };
 void *ugc_handle_extra[UGC_HANDLE_COUNT] = { 0 };
 void *ugc_handle_dependent[UGC_HANDLE_COUNT] = { 0 };
+int   ugc_handle_free_stack[UGC_HANDLE_COUNT] = { 0 };
 
 /* Direct path: allocate object + header straight from the zeroing
  * allocator, bypassing any allocation context. */
@@ -131,38 +133,105 @@ ugc_handle_store_contains(const void *hndl)
     return handle >= handleStart && handle < handleEnd;
 }
 
+/* Take the index of a slot for a new handle: pop the most recently
+ * destroyed slot if one exists (LIFO keeps the touched-memory footprint
+ * small - a property that matters in a zkVM, where every newly touched
+ * page has a proving cost), otherwise grow the array. */
+/*@
+  requires ugc_store_consistent;
+  assigns ugc_handle_count, ugc_handle_free_count;
+  ensures ugc_store_consistent;
+
+  behavior full:
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count == UGC_HANDLE_COUNT;
+    assigns \nothing;
+    ensures \result == -1;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count);
+
+  behavior recycled:
+    assumes ugc_handle_free_count > 0;
+    ensures ugc_handle_free_count == \old(ugc_handle_free_count) - 1;
+    ensures ugc_handle_count == \old(ugc_handle_count);
+    ensures \result == ugc_handle_free_stack[ugc_handle_free_count];
+    ensures 0 <= \result < ugc_handle_count;
+
+  behavior fresh:
+    assumes ugc_handle_free_count == 0 &&
+            ugc_handle_count < UGC_HANDLE_COUNT;
+    ensures \result == \old(ugc_handle_count);
+    ensures ugc_handle_count == \old(ugc_handle_count) + 1;
+    ensures ugc_handle_free_count == 0;
+    ensures 0 <= \result < ugc_handle_count;
+
+  complete behaviors;
+  disjoint behaviors;
+*/
+static int
+ugc_handle_slot_acquire(void)
+{
+    if (ugc_handle_free_count > 0)
+        return ugc_handle_free_stack[--ugc_handle_free_count];
+    if (ugc_handle_count < UGC_HANDLE_COUNT)
+        return ugc_handle_count++;
+    return -1;
+}
+
 void **
 ugc_handle_create(void *object, int type)
 {
-    if (ugc_handle_count == UGC_HANDLE_COUNT)
+    int idx = ugc_handle_slot_acquire();
+    if (idx < 0)
         return (void **)0;
 
-    ugc_handles[ugc_handle_count] = object;
-    ugc_handle_types[ugc_handle_count] = type;
-    return &ugc_handles[ugc_handle_count++];
+    ugc_handles[idx] = object;
+    ugc_handle_types[idx] = type;
+    ugc_handle_extra[idx] = (void *)0;      /* scrub recycled slot state */
+    ugc_handle_dependent[idx] = (void *)0;
+    return &ugc_handles[idx];
 }
 
 void **
 ugc_handle_create_with_extra(void *object, int type, void *extra)
 {
-    if (ugc_handle_count == UGC_HANDLE_COUNT)
+    int idx = ugc_handle_slot_acquire();
+    if (idx < 0)
         return (void **)0;
 
-    ugc_handles[ugc_handle_count] = object;
-    ugc_handle_types[ugc_handle_count] = type;
-    ugc_handle_extra[ugc_handle_count] = extra;
-    return &ugc_handles[ugc_handle_count++];
+    ugc_handles[idx] = object;
+    ugc_handle_types[idx] = type;
+    ugc_handle_extra[idx] = extra;
+    ugc_handle_dependent[idx] = (void *)0;
+    return &ugc_handles[idx];
 }
 
 void **
-ugc_handle_create_dependent(void *primary, void *secondary)
+ugc_handle_create_dependent(void *primary, void *secondary, int type)
 {
-    if (ugc_handle_count == UGC_HANDLE_COUNT)
+    int idx = ugc_handle_slot_acquire();
+    if (idx < 0)
         return (void **)0;
 
-    ugc_handles[ugc_handle_count] = primary;
-    ugc_handle_dependent[ugc_handle_count] = secondary;
-    return &ugc_handles[ugc_handle_count++];
+    ugc_handles[idx] = primary;
+    ugc_handle_types[idx] = type;
+    ugc_handle_extra[idx] = (void *)0;
+    ugc_handle_dependent[idx] = secondary;
+    return &ugc_handles[idx];
+}
+
+void
+ugc_handle_destroy_at(size_t idx)
+{
+    if (ugc_handle_types[idx] < 0 ||
+        ugc_handle_free_count == UGC_HANDLE_COUNT)
+        return; /* double destroy: never push the same index twice */
+
+    ugc_handles[idx] = (void *)0;
+    ugc_handle_types[idx] = UGC_HANDLE_TYPE_FREE;
+    ugc_handle_extra[idx] = (void *)0;
+    ugc_handle_dependent[idx] = (void *)0;
+    ugc_handle_free_stack[ugc_handle_free_count++] = (int)idx;
 }
 
 size_t
@@ -217,12 +286,14 @@ ugc_handle_store_reset(void)
           ugc_handles[k] == \null &&
           ugc_handle_types[k] == 0 &&
           ugc_handle_extra[k] == \null &&
-          ugc_handle_dependent[k] == \null;
+          ugc_handle_dependent[k] == \null &&
+          ugc_handle_free_stack[k] == 0;
       loop assigns i,
           ugc_handles[0 .. UGC_HANDLE_COUNT - 1],
           ugc_handle_types[0 .. UGC_HANDLE_COUNT - 1],
           ugc_handle_extra[0 .. UGC_HANDLE_COUNT - 1],
-          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1];
+          ugc_handle_dependent[0 .. UGC_HANDLE_COUNT - 1],
+          ugc_handle_free_stack[0 .. UGC_HANDLE_COUNT - 1];
       loop variant UGC_HANDLE_COUNT - i;
     */
     for (int i = 0; i < UGC_HANDLE_COUNT; i++)
@@ -231,8 +302,10 @@ ugc_handle_store_reset(void)
         ugc_handle_types[i] = 0;
         ugc_handle_extra[i] = (void *)0;
         ugc_handle_dependent[i] = (void *)0;
+        ugc_handle_free_stack[i] = 0;
     }
     ugc_handle_count = 0;
+    ugc_handle_free_count = 0;
 }
 
 void

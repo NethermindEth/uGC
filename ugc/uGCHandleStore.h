@@ -27,6 +27,7 @@ public:
 
     virtual ~uGCHandleStore() {};
 
+    void uDestroyHandle(OBJECTHANDLE hndl);
     OBJECTHANDLE uGetDependentHandle(OBJECTHANDLE hndl);
     void uSetDependentHandle(OBJECTHANDLE hndl, Object *secondary);
     HandleType uGetHandleType(OBJECTHANDLE hndl);
