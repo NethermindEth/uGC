@@ -86,8 +86,12 @@ alarm.
 
 The release has two more assets: `bflat-signature.sha256`, the SHA-256 of
 each other asset, and `bflat-signature.sha256.sig`, its signature. The
-release job makes them with `tools/sign_package.py` and the secret
-`BFLAT_SIGNING_KEY`, and stops if the secret is not set. bflat-riscv64
+build job writes the list (`tools/sign_package.py list-files`). The sign
+job, the reusable workflow `sign.yml` of bflat-riscv64, signs it with the
+secret `BFLAT_SIGNING_KEY`; it is the only job that has the key, and it runs
+no build. The release job checks the assets against the list and the
+signature (`tools/sign_package.py check-files`, with the variable
+`BFLAT_SIGNING_PUBLIC_KEY`) before it makes the release. bflat-riscv64
 checks `ugc-riscv64.tar.gz` against them before it unpacks it
 (`docs/signing.md` in bflat-riscv64). `tools/sign_package.py` is a copy of
 the script in bflat-riscv64; keep it the same.
