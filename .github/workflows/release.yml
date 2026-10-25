@@ -53,6 +53,19 @@ jobs:
             echo "version=dev-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           fi
 
+      # The signature that bflat checks (docs/signing.md in bflat-riscv64):
+      # the SHA-256 of each asset of the release and its signature, as two
+      # more assets. The script stops if BFLAT_SIGNING_KEY is not set, so a
+      # release cannot go out unsigned. The release flattens the asset
+      # paths, so the list names each file by its base name.
+      - name: Sign
+        env:
+          BFLAT_SIGNING_KEY: ${{ secrets.BFLAT_SIGNING_KEY }}
+        run: |
+          mapfile -d '' objects < <(find build/usr/lib/objects/ugc-zero -name '*.obj' -print0)
+          python3 tools/sign_package.py files signature \
+            build/usr/lib/libugc-zero.a ugc-riscv64.tar.gz "${objects[@]}"
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -64,6 +77,8 @@ jobs:
             build/usr/lib/libugc-zero.a
             build/usr/lib/objects/ugc-zero/**/*.obj
             ugc-riscv64.tar.gz
+            signature/bflat-signature.sha256
+            signature/bflat-signature.sha256.sig
           body: |
             ## uGC Release ${{ steps.version.outputs.version }}
 
@@ -73,6 +88,7 @@ jobs:
             - `libugc-zero.a` - Static library
             - `*.obj` - Individual object files (C++ wrappers and the formally verified C core)
             - `ugc-riscv64.tar.gz` - Complete archive with library and object files
+            - `bflat-signature.sha256`, `bflat-signature.sha256.sig` - The signed SHA-256 list of the other files, which bflat checks
 
             ### Usage
             Link this library with your bflat RISC-V 64-bit projects.

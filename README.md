@@ -82,6 +82,16 @@ docker run --rm -v "$PWD":/work -w /work framac/frama-c:30.0 ./formal/verify.sh
 CI fails if a single proof obligation is not discharged or Eva reports any
 alarm.
 
+## Signed releases
+
+The release has two more assets: `bflat-signature.sha256`, the SHA-256 of
+each other asset, and `bflat-signature.sha256.sig`, its signature. The
+release job makes them with `tools/sign_package.py` and the secret
+`BFLAT_SIGNING_KEY`, and stops if the secret is not set. bflat-riscv64
+checks `ugc-riscv64.tar.gz` against them before it unpacks it
+(`docs/signing.md` in bflat-riscv64). `tools/sign_package.py` is a copy of
+the script in bflat-riscv64; keep it the same.
+
 ## License
 
 This project is licensed under the terms of MIT license.
