@@ -107,7 +107,8 @@ jobs:
   sign:
     name: Sign the release assets
     needs: build
-    uses: NethermindEth/bflat-riscv64/.github/workflows/sign.yml@master
+    permissions: {}
+    uses: NethermindEth/bflat-riscv64/.github/workflows/sign.yml@34a3e73ad5b2f34a868f5793172dc4a3a97bf382 # master
     with:
       lists: bflat-signature-lists
     secrets:
@@ -143,7 +144,7 @@ jobs:
         run: python3 tools/sign_package.py check-files signature release/*
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           # The commit that was built; the default is the head of the default branch.
           target_commitish: ${{ github.sha }}
