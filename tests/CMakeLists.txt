@@ -3,10 +3,12 @@
 # Copyright (C) 2026 Demerzel Solutions Limited (Nethermind)
 # Author: Maxim Menshikov <maksim.menshikov@nethermind.io>
 
+# test_zalloc.c takes the place of ugc_zalloc.c: it frees what the core
+# allocated, so that LeakSanitizer can run on the tests.
 add_library(ugc-core-host
             STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/../ugc/core/ugc_core.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/../ugc/core/ugc_zalloc.c)
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_zalloc.c)
 target_include_directories(ugc-core-host
                            PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}/../ugc/core)
