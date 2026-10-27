@@ -18,6 +18,11 @@ private:
     uint32_t m_uSyncBlockValue;
 };
 
+/* The room left before each object for its header, rounded up to 8 so that objects, and the
+ * array data 8 bytes into them, stay 8-byte aligned on 32-bit targets too: the guests read
+ * array data through 8-byte-aligned pointers. The runtime rounds object sizes to 8 to match. */
+static const size_t ObjectGap = (sizeof(ObjHeader) + 7) & ~(size_t)7;
+
 bool
 uGCHeap::IsValidSegmentSize(size_t size)
 {
@@ -384,7 +389,7 @@ uGCHeap::Alloc(gc_alloc_context * acontext, size_t size, uint32_t flags)
     }
 
     Object *obj = (Object *)ugc_core_alloc(alloc_ptr_p, alloc_limit_p, size,
-        (flags & GC_ALLOC_USER_OLD_HEAP) != 0, sizeof(ObjHeader));
+        (flags & GC_ALLOC_USER_OLD_HEAP) != 0, ObjectGap);
     if (obj != nullptr)
     {
         allocatedBytes += size;
