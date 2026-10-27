@@ -10,6 +10,9 @@
 
 #include <stdio.h>
 
+/* Frees every block that ugc_zalloc gave in the test (test_zalloc.c). */
+void ugc_test_free_all(void);
+
 static int ugc_test_checks = 0;
 static int ugc_test_failures = 0;
 
@@ -36,6 +39,7 @@ static int ugc_test_failures = 0;
 static inline int
 ugc_test_summary(void)
 {
+    ugc_test_free_all();
     printf("%d checks, %d failures\n", ugc_test_checks, ugc_test_failures);
     return ugc_test_failures != 0;
 }
