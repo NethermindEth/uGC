@@ -18,8 +18,12 @@ add_library(${PROJECT_NAME}
             uGCHeap.cpp)
 target_compile_definitions(${PROJECT_NAME}
                            PUBLIC
-                           -DTARGET_UNIX
-                           -DHOST_64BIT)
+                           -DTARGET_UNIX)
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    target_compile_definitions(${PROJECT_NAME}
+                               PUBLIC
+                               -DHOST_64BIT)
+endif()
 target_include_directories(${PROJECT_NAME}
                            PUBLIC
                            .)

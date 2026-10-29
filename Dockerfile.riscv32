@@ -1,0 +1,23 @@
+# The riscv32 (RV32IM ilp32) build of uGC: ./build.sh docker riscv32.
+#
+# The image is the x64 cross-build container of the .NET 11 runtime
+# pipelines, which dotnet-riscv builds the riscv32 runtime in: clang and the
+# LLVM tools of the runtime build. The rv32im sysroot comes from the
+# dotnet-riscv scripts at DOTNET_RISCV_REF, as for the runtime.
+FROM mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net11.0-cross-amd64@sha256:ca817af24ff68c801a3e31f16a0fbf6bb7ba57764b0aeae5be260dbc70ae25cb
+
+ARG DOTNET_RISCV_REF=879c9d10cbbc6b4d50e7c255cbad6bc89bca7bb2
+
+RUN git init -q /dotnet-riscv && cd /dotnet-riscv \
+    && git fetch -q --depth 1 https://github.com/NethermindEth/dotnet-riscv "${DOTNET_RISCV_REF}" \
+    && git checkout -q FETCH_HEAD \
+    && ./build_musl_rv32im.sh /rv32-sysroot \
+    && ./build_libcxx_headers_rv32.sh /rv32-sysroot
+
+RUN git -c advice.detachedHead=false clone -q --depth 1 --filter=blob:none --sparse -b v10.0.0 \
+        https://github.com/dotnet/runtime /runtime \
+    && git -C /runtime sparse-checkout set src/native/minipal src/coreclr/inc src/coreclr/gc
+
+ENV RUNTIME_BASE_DIR=/runtime
+ENV RV32_SYSROOT=/rv32-sysroot
+ENV ISA_SCAN=/dotnet-riscv/tools/isa_scan.py

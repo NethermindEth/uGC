@@ -67,6 +67,11 @@ jobs:
             exit 1
           fi
 
+      # The RV32IM build (Dockerfile.riscv32); it fails if the objects
+      # carry a compressed, atomic or fence instruction.
+      - name: Build riscv32 with Docker
+        run: ./build.sh docker riscv32
+
       - name: Create archive
         run: |
           mkdir -p archive_tmp
@@ -75,6 +80,13 @@ jobs:
           tar -czf ugc-riscv64.tar.gz -C archive_tmp .
           rm -rf archive_tmp
           ls -lh ugc-riscv64.tar.gz
+          mkdir -p archive_tmp
+          cp build-riscv32/usr/lib/ugc.o archive_tmp/
+          find build-riscv32/usr -name "*.obj" -exec cp {} archive_tmp/ \;
+          tar -czf ugc-riscv32.tar.gz -C archive_tmp .
+          rm -rf archive_tmp
+          cp build-riscv32/usr/lib/ugc.o ugc-riscv32.o
+          ls -lh ugc-riscv32.tar.gz ugc-riscv32.o
 
       # The release assets, and the list of their SHA-256 hashes for the
       # sign job (docs/signing.md in bflat-riscv64). This job has no key.
@@ -83,7 +95,7 @@ jobs:
       - name: List the release assets
         run: |
           mapfile -d '' objects < <(find build/usr/lib/objects/ugc-zero -name '*.obj' -print0)
-          files=(build/usr/lib/libugc-zero.a ugc-riscv64.tar.gz "${objects[@]}")
+          files=(build/usr/lib/libugc-zero.a ugc-riscv64.tar.gz ugc-riscv32.tar.gz ugc-riscv32.o "${objects[@]}")
           python3 tools/sign_package.py list-files signature "${files[@]}"
           mkdir release
           cp "${files[@]}" release/
@@ -165,6 +177,8 @@ jobs:
             - `libugc-zero.a` - Static library
             - `*.obj` - Individual object files (C++ wrappers and the formally verified C core)
             - `ugc-riscv64.tar.gz` - Complete archive with library and object files
+            - `ugc-riscv32.o` - The RV32IM (ilp32) build as one relocatable object, for the Airbender guests of bflat
+            - `ugc-riscv32.tar.gz` - `ugc-riscv32.o` and the RV32IM object files
             - `bflat-signature.sha256`, `bflat-signature.sha256.sig` - The signed SHA-256 list of the other files, which bflat checks
 
             ### Usage
