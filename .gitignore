@@ -44,3 +44,4 @@
 /build-tests
 .DS_Store
 /.frama-c
+/build-riscv32

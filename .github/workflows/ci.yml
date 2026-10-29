@@ -97,3 +97,36 @@ jobs:
             build/usr/lib/libugc-zero.a
             build/usr/lib/objects/ugc-zero/**
           retention-days: 7
+
+  build-riscv32:
+    name: Cross-build (riscv32)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Fails if the objects carry a compressed, atomic or fence instruction.
+      - name: Build with Docker
+        run: |
+          chmod +x build.sh
+          ./build.sh docker riscv32
+
+      - name: Verify build artifacts
+        run: |
+          test -f build-riscv32/usr/lib/ugc.o
+          file build-riscv32/usr/lib/ugc.o
+          find build-riscv32/usr/lib/objects/ugc-zero -name '*.obj' | tee objects.txt
+          test -s objects.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugc-riscv32-build
+          path: |
+            build-riscv32/usr/lib/ugc.o
+            build-riscv32/usr/lib/objects/ugc-zero/**
+          retention-days: 7

@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/NethermindEth/uGC)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/NethermindEth/uGC)](https://github.com/NethermindEth/uGC/releases/latest)
 
-Lightweight Garbage Collector for .NET on RISC-V 64-bit.
+Lightweight Garbage Collector for .NET on RISC-V (64-bit, and RV32IM for the Airbender guests).
 
 This is a custom GC implementation designed to be used with [Nethermind's **bflat for RISC-V 64 bit**](https://github.com/NethermindEth/bflat-riscv64).
 
@@ -45,6 +45,31 @@ Then run:
 
 ```bash
 ./build.sh
+```
+
+### riscv32 (RV32IM)
+
+The Airbender guests of bflat are RV32IM ilp32: no compressed, atomic,
+floating-point or fence instructions. Their build uses clang
+(`toolchain/rv32im.cmake`) against an rv32im musl sysroot with the libc++
+headers, the one that dotnet-riscv builds the riscv32 runtime against:
+
+```bash
+./build.sh docker riscv32
+```
+
+`Dockerfile.riscv32` makes the sysroot with the dotnet-riscv scripts
+(`build_musl_rv32im.sh`, `build_libcxx_headers_rv32.sh`) at
+`DOTNET_RISCV_REF`, in the cross-build image of the .NET runtime that
+dotnet-riscv uses. The build writes the objects to
+`build-riscv32/usr/lib/objects/ugc-zero` and all of them, as one relocatable
+object, to `build-riscv32/usr/lib/ugc.o`, which the guests link. It fails if
+`ugc.o` carries an instruction that RV32IM does not have
+(`tools/isa_scan.py` of dotnet-riscv). Outside Docker, set `RUNTIME_BASE_DIR`
+and `RV32_SYSROOT`, and `ISA_SCAN` for the check:
+
+```bash
+RUNTIME_BASE_DIR=<runtime> RV32_SYSROOT=<sysroot> ./build.sh riscv32
 ```
 
 ## Architecture
