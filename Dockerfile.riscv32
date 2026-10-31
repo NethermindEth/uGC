@@ -6,7 +6,7 @@
 # dotnet-riscv scripts at DOTNET_RISCV_REF, as for the runtime.
 FROM mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net11.0-cross-amd64@sha256:ca817af24ff68c801a3e31f16a0fbf6bb7ba57764b0aeae5be260dbc70ae25cb
 
-ARG DOTNET_RISCV_REF=879c9d10cbbc6b4d50e7c255cbad6bc89bca7bb2
+ARG DOTNET_RISCV_REF=69b95a916c60473ac73cdd67ca938ca017e7febd
 
 RUN git init -q /dotnet-riscv && cd /dotnet-riscv \
     && git fetch -q --depth 1 https://github.com/NethermindEth/dotnet-riscv "${DOTNET_RISCV_REF}" \
